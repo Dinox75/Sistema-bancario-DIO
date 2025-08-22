@@ -5,8 +5,13 @@ class Cliente:
     def __init__(self, endereco):
         self.endereco = endereco
         self.contas = []
+        self.indice_conta = 0
 
     def realizar_transacao(self, conta, transacao):
+        if len(conta.historico.transacoes_do_dia()) >= 15:
+            print("Limite de transações diárias atingido.")
+            return
+        
         transacao.registrar(conta)
 
     def adicionar_conta(self, conta):
@@ -107,7 +112,7 @@ class Historico:
     def __init__(self):
         self._transacoes = []
 
-    @property
+    @property                                                                                           #decorator que transforma o método em uma propriedade somente leitura
     def transacoes(self):
         return self._transacoes
     
@@ -115,8 +120,23 @@ class Historico:
         self._transacoes.append({
             "tipo": transacao.__class__.__name__,
             "valor": transacao.valor,
-            "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            "data": datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S")
         })
+
+    def gerar_relatorio(self, tipo_transacao=None):
+        for transacao in self._transacoes:
+            if tipo_transacao is None or transacao["tipo"] == tipo_transacao.lower():  # verifica se o tipo de transação é None ou se o tipo da transação atual é igual ao tipo de transação fornecido 
+                yield transacao                                                                         #yield é usado para criar um gerador que pode ser iterado, retornando um valor por vez
+
+    def transacoes_do_dia(self):
+        data_atual = datetime.utcnow().date()                                            #date() é usado para obter apenas a parte da data, sem a hora                                
+        transacoes = []
+        for transacao in self._transacoes:
+            data_transacao = datetime.strptime(transacao["data"], "%d/%m/%Y %H:%M:%S").date()           #strftime("%d/%m/%Y") é usado para formatar a data em uma string no formato "dd/mm/yyyy"
+            if data_transacao == data_atual:
+                transacoes.append(transacao)
+        return transacoes
+
 
 class Transacao(ABC):
     @property
@@ -179,6 +199,7 @@ def recuperar_conta_cliente(cliente):
         return 
     return cliente.contas[0]
 
+
 def depositar(clientes):
     cpf= input("Informe o CPF do cliente: ")
     cliente = filtrar_clientes(clientes, cpf)
@@ -226,13 +247,19 @@ def exibir_extrato(clientes):
         print("Conta não encontrada.")
         return
     
-    print(f"\nExtrato da conta {conta.numero} - {conta.cliente.nome}")
-    if not conta.historico.transacoes:
-        print("Não foram realizadas movimentações.")
-    else:
-        for transacao in conta.historico.transacoes:
-            print(f"{transacao['data']} - {transacao['tipo']}: R$ {transacao['valor']:.2f}")
-    print(f"Saldo atual: R$ {conta.saldo:.2f}")
+    print("\nExtrato da Conta:")
+    extrato = ""
+    tem_transacoes = False
+    for transacao in conta.historico.gerar_relatorio():
+        tem_transacoes = True
+        extrato += f"\n{transacao['data']} - {transacao['tipo']}: R$ {transacao['valor']:.2f}"
+
+    if not tem_transacoes:
+        extrato = "Nenhuma transação encontrada."
+
+    print(extrato)
+    print(f"\nSaldo: \n\t R$ {conta.saldo:.2f}")
+
 
 def criar_cliente(clientes):
     nome = input("Informe o nome do cliente: ")
